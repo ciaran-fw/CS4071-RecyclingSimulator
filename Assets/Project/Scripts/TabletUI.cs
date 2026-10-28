@@ -1,4 +1,5 @@
 using UnityEngine;
+using System.Collections;
 
 public class TabletUI : MonoBehaviour
 {
@@ -8,13 +9,25 @@ public class TabletUI : MonoBehaviour
 
     public void ShowStartScreen()
     {
-        startScreen.SetActive(true);
         stopScreen.SetActive(false);
+        StartCoroutine(ShowStartScreenDelayed());
+    }
+
+    private IEnumerator ShowStartScreenDelayed()
+    {
+        yield return new WaitForSeconds(2f);
+        startScreen.SetActive(true);
     }
 
     public void ShowStopScreen()
     {
         startScreen.SetActive(false);
+        StartCoroutine(ShowStopScreenDelayed());
+    }
+
+    private IEnumerator ShowStopScreenDelayed()
+    {
+        yield return new WaitForSeconds(2f);
         stopScreen.SetActive(true);
     }
 }

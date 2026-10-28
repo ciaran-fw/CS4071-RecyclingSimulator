@@ -20,6 +20,8 @@ public class Bin : MonoBehaviour
 
     private void OnTriggerEnter(Collider other)
     {
+        if (!other.CompareTag("Plastic") && !other.CompareTag("Cardboard") && !other.CompareTag("Metal") && !other.CompareTag("Other")) return;
+
         if (other.CompareTag(correctTag))
         {
             onCorrectTrash.Invoke();
