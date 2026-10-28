@@ -25,6 +25,7 @@ public class TrashPrefabIconCapturingTool : EditorWindow
 
     private void OnGUI()
     {
+        // how the gui for tool will look in editor tool.
         GUILayout.Label("Trash Prefab Capture", EditorStyles.boldLabel);
 
         EditorGUILayout.HelpBox(
@@ -96,6 +97,7 @@ public class TrashPrefabIconCapturingTool : EditorWindow
 
     private void CaptureAllPrefabs()
     {
+        // setup to create the icons.
         if (prefabFolder == null)
         {
             Debug.LogError("Please assign the folder containing your trash prefabs.");
@@ -129,7 +131,7 @@ public class TrashPrefabIconCapturingTool : EditorWindow
 
         Directory.CreateDirectory(outputFolder);
 
-        // Remove existing PNG images from the output folder.
+        // remove existing PNG images from the output folder.
         string[] existingImages = Directory.GetFiles(
             outputFolder,
             "*.png",
@@ -149,6 +151,7 @@ public class TrashPrefabIconCapturingTool : EditorWindow
 
         try
         {
+            // go through all prefabs and capture and icon for them.
             foreach (string guid in prefabGuids)
             {
                 string prefabPath = AssetDatabase.GUIDToAssetPath(guid);
@@ -181,29 +184,9 @@ public class TrashPrefabIconCapturingTool : EditorWindow
         RenderTexture renderTexture = null;
         Texture2D image = null;
 
-        Camera camera = captureCamera;
-
-        // Store the camera's original settings.
-        Transform cameraTransform = camera.transform;
-        Vector3 originalPosition = cameraTransform.position;
-        Quaternion originalRotation = cameraTransform.rotation;
-
-        RenderTexture originalTarget = camera.targetTexture;
-        Color originalBackground = camera.backgroundColor;
-        CameraClearFlags originalClearFlags = camera.clearFlags;
-        bool originalOrthographic = camera.orthographic;
-        float originalOrthographicSize = camera.orthographicSize;
-        float originalFieldOfView = camera.fieldOfView;
-        float originalNearClip = camera.nearClipPlane;
-        float originalFarClip = camera.farClipPlane;
-        bool originalHDR = camera.allowHDR;
-        bool originalMSAA = camera.allowMSAA;
-
-        RenderTexture originalActive = RenderTexture.active;
-
         try
         {
-            // Instantiate the prefab in the capture scene.
+            // instantiate the prefab into capture scene.
             instance = (GameObject)PrefabUtility.InstantiatePrefab(prefab);
 
             if (instance == null)
@@ -214,9 +197,10 @@ public class TrashPrefabIconCapturingTool : EditorWindow
 
             instance.transform.position = Vector3.zero;
 
+            // rotate new instance based on chosen rotation from tool.
             instance.transform.rotation = Quaternion.Euler(rotationX, rotationY, 0f);
 
-            // Find the visible model bounds.
+            // find the visible model bounds.
             Renderer[] renderers = instance.GetComponentsInChildren<Renderer>();
 
             bool foundBounds = false;
@@ -224,49 +208,49 @@ public class TrashPrefabIconCapturingTool : EditorWindow
 
             foreach (Renderer renderer in renderers)
             {
-                if (!renderer.enabled)
-                    continue;
+                // inactive models should not count.
+                if (!renderer.enabled) continue;
 
                 if (!foundBounds)
                 {
+                    // when its the first bounds we find we just set it.
                     bounds = renderer.bounds;
                     foundBounds = true;
                 }
                 else
                 {
+                    // if we have multiple bounds we must combine them together to form a new bound
+                    // that fits both bounds.
                     bounds.Encapsulate(renderer.bounds);
                 }
             }
 
             if (!foundBounds)
             {
-                Debug.LogWarning(
-                    $"Skipping {prefab.name}: no enabled Renderers found."
-                );
-
+                // if no models are on prefab / or none are active we skip it.
+                Debug.LogWarning($"Skipping {prefab.name}: no enabled Renderers found.");
                 return false;
             }
 
-            // Use a consistent orthographic view for every model.
-            camera.orthographic = true;
+            // use a consistent orthographic view for every prefab.
+            captureCamera.orthographic = true;
 
             Vector3 centre = bounds.center;
 
-            cameraTransform.position = centre - cameraTransform.forward * 5f;
+            captureCamera.transform.position = centre - captureCamera.transform.forward * 5f;
 
-            camera.orthographicSize =
-                Mathf.Max(bounds.extents.magnitude * padding, 0.05f);
+            captureCamera.orthographicSize = Mathf.Max(bounds.extents.magnitude * padding, 0.05f);
 
-            camera.nearClipPlane = 0.01f;
-            camera.farClipPlane = 100f;
+            captureCamera.nearClipPlane = 0.01f;
+            captureCamera.farClipPlane = 100f;
 
-            // Configure the transparent capture.
-            camera.clearFlags = CameraClearFlags.SolidColor;
-            camera.backgroundColor = new Color(0f, 0f, 0f, 0f);
-            camera.allowHDR = false;
-            camera.allowMSAA = false;
+            // make sure background is transparent on icon.
+            captureCamera.clearFlags = CameraClearFlags.SolidColor;
+            captureCamera.backgroundColor = new Color(0f, 0f, 0f, 0f);
+            captureCamera.allowHDR = false;
+            captureCamera.allowMSAA = false;
 
-            // Create a square render target with alpha support.
+            // create a square render target.
             renderTexture = new RenderTexture(
                 imageSize,
                 imageSize,
@@ -275,41 +259,26 @@ public class TrashPrefabIconCapturingTool : EditorWindow
             );
 
             renderTexture.Create();
-            camera.targetTexture = renderTexture;
+            captureCamera.targetTexture = renderTexture;
 
-            // Request a render through URP.
-            UniversalRenderPipeline.SingleCameraRequest request =
-                new UniversalRenderPipeline.SingleCameraRequest();
+            // request a render through URP.
+            UniversalRenderPipeline.SingleCameraRequest request = new UniversalRenderPipeline.SingleCameraRequest();
 
             request.destination = renderTexture;
 
-            RenderPipeline.SubmitRenderRequest(camera, request);
+            RenderPipeline.SubmitRenderRequest(captureCamera, request);
 
-            // Read the rendered pixels.
+            // read the rendered pixels.
             RenderTexture.active = renderTexture;
 
-            image = new Texture2D(
-                imageSize,
-                imageSize,
-                TextureFormat.RGBA32,
-                false
-            );
-
-            image.ReadPixels(
-                new Rect(0, 0, imageSize, imageSize),
-                0,
-                0
-            );
-
+            image = new Texture2D(imageSize, imageSize, TextureFormat.RGBA32, false);
+            image.ReadPixels(new Rect(0, 0, imageSize, imageSize), 0, 0);
             image.Apply();
 
             string formattedName = prefab.name.Replace(" ", "") + "Icon";
 
-            // Save the PNG using the prefab's name.
-            string imagePath = Path.Combine(
-                outputFolder,
-                formattedName + ".png"
-            );
+            // save the icon PNG using the prefabs name.
+            string imagePath = Path.Combine(outputFolder, formattedName + ".png");
 
             File.WriteAllBytes(imagePath, image.EncodeToPNG());
 
@@ -319,37 +288,17 @@ public class TrashPrefabIconCapturingTool : EditorWindow
         }
         catch (System.Exception exception)
         {
-            Debug.LogError(
-                $"Failed to capture {prefab.name}: {exception.Message}"
-            );
-
+            // if there is any king of error/exception while trying to capture icon.
+            // we log it and skip prefab.
+            Debug.LogError($"Failed to capture {prefab.name}: {exception.Message}");
             return false;
         }
         finally
         {
-            // Restore the camera.
-            camera.targetTexture = originalTarget;
-            camera.backgroundColor = originalBackground;
-            camera.clearFlags = originalClearFlags;
-            camera.orthographic = originalOrthographic;
-            camera.orthographicSize = originalOrthographicSize;
-            camera.fieldOfView = originalFieldOfView;
-            camera.nearClipPlane = originalNearClip;
-            camera.farClipPlane = originalFarClip;
-            camera.allowHDR = originalHDR;
-            camera.allowMSAA = originalMSAA;
+            // remove the temporary prefab instance, image and render texture.
+            if (instance != null) DestroyImmediate(instance);
 
-            cameraTransform.position = originalPosition;
-            cameraTransform.rotation = originalRotation;
-
-            RenderTexture.active = originalActive;
-
-            // Remove the temporary prefab instance.
-            if (instance != null)
-                DestroyImmediate(instance);
-
-            if (image != null)
-                DestroyImmediate(image);
+            if (image != null) DestroyImmediate(image);
 
             if (renderTexture != null)
             {
